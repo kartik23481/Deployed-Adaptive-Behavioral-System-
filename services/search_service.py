@@ -856,7 +856,7 @@ If the query doesn't clearly match anything, return:
     # Wrap your call in a simple retry loop with exponential backoff
     for attempt in range(3):
         try:
-            response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+            response = client.models.generate_content(model="gemini-3.1-flash-lite", contents=prompt)
             category_info = response.text.strip()
             match = re.search(r'\{[\s\S]*?\}', category_info)
             if match:
