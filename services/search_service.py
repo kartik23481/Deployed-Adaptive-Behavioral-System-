@@ -842,16 +842,46 @@ Query: "{query.strip()}"
 If the query doesn't clearly match anything, return:
 {{ "parent_category": "unknown", "sub_category": "unknown" }}
 """
-    try:
-        response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-        category_info = response.text.strip()
-        match = re.search(r'\{[\s\S]*?\}', category_info)
-        if match:
-            return json.loads(match.group(0))
-        raise ValueError("No valid JSON returned by Gemini")
-    except Exception as e:
-        print("❌ Gemini category detection error:", e)
-        return {"parent_category": "unknown", "sub_category": "unknown"}
+    # try:
+    #     response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+    #     category_info = response.text.strip()
+    #     match = re.search(r'\{[\s\S]*?\}', category_info)
+    #     if match:
+    #         return json.loads(match.group(0))
+    #     raise ValueError("No valid JSON returned by Gemini")
+    # except Exception as e:
+    #     print("❌ Gemini category detection error:", e)
+    #     return {"parent_category": "unknown", "sub_category": "unknown"}
+    
+    # Wrap your call in a simple retry loop with exponential backoff
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+            category_info = response.text.strip()
+            match = re.search(r'\{[\s\S]*?\}', category_info)
+            if match:
+                return json.loads(match.group(0))
+            
+            # If the model hallucinates non-JSON, we raise a ValueError to trigger the except block
+            raise ValueError("No valid JSON returned by Gemini")
+            
+        except Exception as e:
+            print(f"❌ Gemini category detection error (Attempt {attempt + 1}/3):", e)
+            
+            # Check if the error is due to rate limits or server overload
+            if "503" in str(e) or "429" in str(e):
+                if attempt < 2: # Don't sleep if it's the very last attempt
+                    await asyncio.sleep(2 ** attempt) # Wait 1s, then 2s
+                    continue
+                else:
+                    # If we exhausted all 3 attempts, raise the 503 error for the frontend
+                    raise HTTPException(status_code=503, detail="AI_SERVICE_UNAVAILABLE")
+            
+            # If the error is NOT 503/429 (e.g. prompt issue, bad JSON), return unknown
+            return {"parent_category": "unknown", "sub_category": "unknown"}
+
+    # Fallback return (should rarely be reached due to the logic above)
+    return {"parent_category": "unknown", "sub_category": "unknown"}
 
 
 async def get_query_embedding_from_category(query: str, CATEGORY_EMBEDDINGS: dict):
