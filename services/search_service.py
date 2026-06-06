@@ -907,6 +907,11 @@ async def search_products(
         try:
             parent_cat = "unknown"
             sub_cat    = "unknown"
+
+            # Add this trap right here
+            if parent_cat == "unknown" or sub_cat == "unknown":
+                raise HTTPException(status_code=400, detail="CATEGORY_UNKNOWN")
+            
             if parent_cat != "unknown" and sub_cat != "unknown":
                 category_details = seasonal_categories.get(parent_cat, {}).get(sub_cat)
 
