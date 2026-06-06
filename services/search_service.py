@@ -767,6 +767,8 @@
 
 # render + ngrok suppported 
 
+# services/search_service.py (that run on render)
+
 import os
 import re
 import json
@@ -903,8 +905,8 @@ async def search_products(
             return [NewProduct(**item) for item in cyclic_slice(data, offset, limit)]
 
         try:
-            parent_cat = "evergreen_categories" 
-            sub_cat    = "mobiles"
+            parent_cat = "unknown"
+            sub_cat    = "unknown"
             if parent_cat != "unknown" and sub_cat != "unknown":
                 category_details = seasonal_categories.get(parent_cat, {}).get(sub_cat)
 
