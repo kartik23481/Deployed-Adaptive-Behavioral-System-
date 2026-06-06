@@ -905,8 +905,9 @@ async def search_products(
             return [NewProduct(**item) for item in cyclic_slice(data, offset, limit)]
 
         try:
-            parent_cat = "unknown"
-            sub_cat    = "unknown"
+            category_info = await detect_query_category(query)
+            parent_cat = category_info.get("parent_category", "unknown")
+            sub_cat    = category_info.get("sub_category", "unknown")
 
             # Add this trap right here
             if parent_cat == "unknown" or sub_cat == "unknown":
