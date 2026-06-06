@@ -931,7 +931,7 @@ async def search_products(
                                 await ws_manager.send_personal_message("[SYSTEM] 🟢 Slot acquired! Routing to local worker...", client_id)
                                 
                                 if not ACTIVE_WORKER_URL:
-                                    raise Exception("Worker tunnel not configured.")
+                                    raise HTTPException(status_code=503, detail="WORKER_OFFLINE")
 
                                 payload = {
                                     "query": query,
@@ -943,18 +943,28 @@ async def search_products(
                                     "render_url": os.getenv("RENDER_EXTERNAL_URL", "http://localhost:8000")
                                 }
 
-                                async with httpx.AsyncClient(timeout=180.0) as client_http:
-                                    response = await client_http.post(f"{ACTIVE_WORKER_URL}/api/worker/scrape", json=payload)
-                                    
-                                    if response.status_code != 200:
-                                        raise Exception(f"Worker node error: {response.text}")
+                                try:
+                                    async with httpx.AsyncClient(timeout=180.0) as client_http:
+                                        response = await client_http.post(f"{ACTIVE_WORKER_URL}/api/worker/scrape", json=payload)
+                                        
+                                        if response.status_code != 200:
+                                            # Trap 2: Ngrok is up, but worker crashed
+                                            raise HTTPException(status_code=503, detail="WORKER_OFFLINE")
 
-                                    scraped = response.json().get("data", [])
+                                        scraped = response.json().get("data", [])
+
+                                except (httpx.RequestError, httpx.TimeoutException):
+                                    # Trap 3: Ngrok is entirely turned off/unreachable
+                                    raise HTTPException(status_code=503, detail="WORKER_OFFLINE")
                                 
                                 await set_scraped_products(query, parent_cat, sub_cat, scraped)
                                 
                                 await ws_manager.send_personal_message("[SYSTEM] ⏱ Extraction complete. Cooling down network connections (5s)...", client_id)
                                 await asyncio.sleep(5)
+
+                        except HTTPException:
+                            # CRITICAL: Let our custom 503 error pass through to the frontend
+                            raise
                         
                         except Exception as e:
                             await ws_manager.send_personal_message(f"[ERROR] ❌ Cloud worker connection failed.", client_id)
