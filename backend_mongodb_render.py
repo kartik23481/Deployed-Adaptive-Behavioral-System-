@@ -127,6 +127,10 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         "picture": current_user["picture"]
     }
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 
 # ── core data endpoints ───────────────────────────────────────────────────────
 
