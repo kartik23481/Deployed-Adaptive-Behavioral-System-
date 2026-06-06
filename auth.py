@@ -6,7 +6,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
-from config import GOOGLE_CLIENT_ID, JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_MINUTES
+from config import GOOGLE_CLIENT_ID, JWT_SECRET, JWT_ALGORITHM
 from db import get_db
 
 security = HTTPBearer()
@@ -17,7 +17,7 @@ def create_jwt(user_id: str, email: str, name: str, picture: str) -> str:
         "email": email,
         "name": name,
         "picture": picture,
-        "exp": datetime.utcnow() + timedelta(minutes=JWT_EXPIRE_MINUTES)
+        "exp": datetime.utcnow() + timedelta(minutes=10080)
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
