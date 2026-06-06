@@ -798,6 +798,76 @@ _in_flight_scrapes = {}
 
 # Keep match_known_category, detect_query_category, and get_query_embedding_from_category exactly as they are.
 
+def match_known_category(query: str):
+    for cat_key, synonyms in dict2.items():
+        if query in synonyms:
+            for folder, categories in dict1.items():
+                if cat_key in categories:
+                    return cat_key, folder
+            return cat_key, None
+    return None, None
+
+
+async def detect_query_category(query: str) -> dict:
+    d = {
+        "evergreen_categories": list(seasonal_categories["evergreen_categories"].keys()),
+        "summer_categories": list(seasonal_categories["summer_categories"].keys()),
+        "rainy_categories": list(seasonal_categories["rainy_categories"].keys()),
+        "winter_categories": list(seasonal_categories["winter_categories"].keys())
+    }
+    client = genai.Client(api_key=GEMINI_KEY)
+    evergreen_list = "\n".join(f"- {item}" for item in d["evergreen_categories"])
+    summer_list    = "\n".join(f"- {item}" for item in d["summer_categories"])
+    rainy_list     = "\n".join(f"- {item}" for item in d["rainy_categories"])
+    winter_list    = "\n".join(f"- {item}" for item in d["winter_categories"])
+
+    prompt = f"""
+You are a category detection system for an AI-powered e-commerce platform.
+Your task is to:
+1. Decide the parent category: either "evergreen_categories" or "summer_categories" or "rainy_categories" or "winter_categories"
+2. Choose the correct sub-category from the list provided.
+3. Do NOT invent new categories.
+4. Return ONLY a JSON object in the following format (without explanations or markdown): 
+{{ "parent_category": "...", "sub_category": "..." }}
+
+Evergreen Categories:\n{evergreen_list}
+Summer Categories:\n{summer_list}
+Rainy Categories:\n{rainy_list}
+Winter Categories:\n{winter_list}
+
+Query: "{query.strip()}"
+
+If the query doesn't clearly match anything, return:
+{{ "parent_category": "unknown", "sub_category": "unknown" }}
+"""
+    try:
+        response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+        category_info = response.text.strip()
+        match = re.search(r'\{[\s\S]*?\}', category_info)
+        if match:
+            return json.loads(match.group(0))
+        raise ValueError("No valid JSON returned by Gemini")
+    except Exception as e:
+        print("❌ Gemini category detection error:", e)
+        return {"parent_category": "unknown", "sub_category": "unknown"}
+
+
+async def get_query_embedding_from_category(query: str, CATEGORY_EMBEDDINGS: dict):
+    matched_category, _ = match_known_category(query)
+    if matched_category and matched_category in CATEGORY_EMBEDDINGS:
+        return CATEGORY_EMBEDDINGS[matched_category]["embedding"], matched_category
+    # Type 2 — find sub_cat from scraped_products
+    from services.mongo_store import get_db
+    db = get_db()
+    doc = await db.scraped_products.find_one(
+        {"query": query}, {"sub_cat": 1, "_id": 0}
+    )
+    if doc:
+        sub_cat = doc.get("sub_cat", "")
+        if sub_cat and sub_cat in CATEGORY_EMBEDDINGS:
+            return CATEGORY_EMBEDDINGS[sub_cat]["embedding"], sub_cat
+    return None, None
+
 async def search_products(
     query: str = Query(..., min_length=1),
     offset: int = Query(0, ge=0),
