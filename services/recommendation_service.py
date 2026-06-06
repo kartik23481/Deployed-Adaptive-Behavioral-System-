@@ -159,7 +159,7 @@
 
 import math
 import os, numpy as np
-from sentence_transformers import SentenceTransformer
+# from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from config import *
 from dotenv import load_dotenv
