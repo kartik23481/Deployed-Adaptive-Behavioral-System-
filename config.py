@@ -38,4 +38,9 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 JWT_SECRET = os.getenv("JWT_SECRET")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", 10080))
+# Safe integer parsing that handles empty strings gracefully
+jwt_expire_env = os.getenv("JWT_EXPIRE_MINUTES")
+if jwt_expire_env and jwt_expire_env.strip():
+    JWT_EXPIRE_MINUTES = int(jwt_expire_env)
+else:
+    JWT_EXPIRE_MINUTES = 10080  # Default fallback fallback
