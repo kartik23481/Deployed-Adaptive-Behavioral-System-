@@ -1,5 +1,5 @@
 import sys, random, os
-from fastapi import FastAPI, HTTPException, Query, Depends, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Depends, WebSocket, WebSocketDisconnect,Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -47,6 +47,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ADD THIS NEW MIDDLEWARE BLOCK
+@app.middleware("http")
+async def add_cache_control_header(request: Request, call_next):
+    """
+    Forces mobile browsers to fetch fresh data on every page load
+    instead of serving stale GET requests from their internal memory.
+    """
+    response = await call_next(request)
+    # Target only GET requests (POSTs are never cached by default)
+    if request.method == "GET":
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 CATEGORY_EMBEDDINGS = {}
 
