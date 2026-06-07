@@ -892,8 +892,17 @@ for season, cats in dict1.items():
 
 CATEGORIES_STR = ", ".join(CATEGORY_MAP.keys())
 
+import random
+from google import genai
+from config import GEMINI_API_KEYS
 
-from services.gemini_client import get_gemini_client
+def get_gemini_client() -> genai.Client:
+    api_key = random.choice(GEMINI_API_KEYS)
+    print(f"  🔑 Using key: ...{api_key[-6:]}")
+    return genai.Client(
+        api_key=api_key,
+        http_options={'api_version': 'v1beta'}
+    )
 
 async def detect_query_category(query: str) -> dict:
     
