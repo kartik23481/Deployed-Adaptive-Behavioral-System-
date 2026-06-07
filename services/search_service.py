@@ -790,7 +790,7 @@ from services.mongo_store import (
 )
 
 load_dotenv()
-GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+# GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 from services.ws_manager import ws_manager
 
 ACTIVE_WORKER_URL = os.getenv("NGROK_WORKER_URL", "")
@@ -810,78 +810,134 @@ def match_known_category(query: str):
     return None, None
 
 
+# async def detect_query_category(query: str) -> dict:
+#     d = {
+#         "evergreen_categories": list(seasonal_categories["evergreen_categories"].keys()),
+#         "summer_categories": list(seasonal_categories["summer_categories"].keys()),
+#         "rainy_categories": list(seasonal_categories["rainy_categories"].keys()),
+#         "winter_categories": list(seasonal_categories["winter_categories"].keys())
+#     }
+#     client = genai.Client(api_key=GEMINI_KEY)
+#     evergreen_list = "\n".join(f"- {item}" for item in d["evergreen_categories"])
+#     summer_list    = "\n".join(f"- {item}" for item in d["summer_categories"])
+#     rainy_list     = "\n".join(f"- {item}" for item in d["rainy_categories"])
+#     winter_list    = "\n".join(f"- {item}" for item in d["winter_categories"])
+
+#     prompt = f"""
+# You are a category detection system for an AI-powered e-commerce platform.
+# Your task is to:
+# 1. Decide the parent category: either "evergreen_categories" or "summer_categories" or "rainy_categories" or "winter_categories"
+# 2. Choose the correct sub-category from the list provided.
+# 3. Do NOT invent new categories.
+# 4. Return ONLY a JSON object in the following format (without explanations or markdown): 
+# {{ "parent_category": "...", "sub_category": "..." }}
+
+# Evergreen Categories:\n{evergreen_list}
+# Summer Categories:\n{summer_list}
+# Rainy Categories:\n{rainy_list}
+# Winter Categories:\n{winter_list}
+
+# Query: "{query.strip()}"
+
+# If the query doesn't clearly match anything, return:
+# {{ "parent_category": "unknown", "sub_category": "unknown" }}
+# """
+#     try:
+#         response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+#         category_info = response.text.strip()
+#         match = re.search(r'\{[\s\S]*?\}', category_info)
+#         if match:
+#             return json.loads(match.group(0))
+#         raise ValueError("No valid JSON returned by Gemini")
+#     except Exception as e:
+#         print("❌ Gemini category detection error:", e)
+#         return {"parent_category": "unknown", "sub_category": "unknown"}
+    
+#     # # Wrap your call in a simple retry loop with exponential backoff
+#     # for attempt in range(3):
+#     #     try:
+#     #         response = client.models.generate_content(model="gemini-3.1-flash-lite", contents=prompt)
+#     #         category_info = response.text.strip()
+#     #         match = re.search(r'\{[\s\S]*?\}', category_info)
+#     #         if match:
+#     #             return json.loads(match.group(0))
+            
+#     #         # If the model hallucinates non-JSON, we raise a ValueError to trigger the except block
+#     #         raise ValueError("No valid JSON returned by Gemini")
+            
+#     #     except Exception as e:
+#     #         print(f"❌ Gemini category detection error (Attempt {attempt + 1}/3):", e)
+            
+#     #         # Check if the error is due to rate limits or server overload
+#     #         if "503" in str(e) or "429" in str(e):
+#     #             if attempt < 2: # Don't sleep if it's the very last attempt
+#     #                 await asyncio.sleep(2 ** attempt) # Wait 1s, then 2s
+#     #                 continue
+#     #             else:
+#     #                 # If we exhausted all 3 attempts, raise the 503 error for the frontend
+#     #                 raise HTTPException(status_code=503, detail="AI_SERVICE_UNAVAILABLE")
+            
+#     #         # If the error is NOT 503/429 (e.g. prompt issue, bad JSON), return unknown
+#     #         return {"parent_category": "unknown", "sub_category": "unknown"}
+
+#     # # Fallback return (should rarely be reached due to the logic above)
+#     # return {"parent_category": "unknown", "sub_category": "unknown"}
+
+
+
+CATEGORY_MAP = {}
+for season, cats in dict1.items():
+    for cat in cats:
+        CATEGORY_MAP[cat] = season
+
+CATEGORIES_STR = ", ".join(CATEGORY_MAP.keys())
+
+
+from services.gemini_client import get_gemini_client
+
 async def detect_query_category(query: str) -> dict:
-    d = {
-        "evergreen_categories": list(seasonal_categories["evergreen_categories"].keys()),
-        "summer_categories": list(seasonal_categories["summer_categories"].keys()),
-        "rainy_categories": list(seasonal_categories["rainy_categories"].keys()),
-        "winter_categories": list(seasonal_categories["winter_categories"].keys())
-    }
-    client = genai.Client(api_key=GEMINI_KEY)
-    evergreen_list = "\n".join(f"- {item}" for item in d["evergreen_categories"])
-    summer_list    = "\n".join(f"- {item}" for item in d["summer_categories"])
-    rainy_list     = "\n".join(f"- {item}" for item in d["rainy_categories"])
-    winter_list    = "\n".join(f"- {item}" for item in d["winter_categories"])
+    
+    client = get_gemini_client()
 
-    prompt = f"""
-You are a category detection system for an AI-powered e-commerce platform.
-Your task is to:
-1. Decide the parent category: either "evergreen_categories" or "summer_categories" or "rainy_categories" or "winter_categories"
-2. Choose the correct sub-category from the list provided.
-3. Do NOT invent new categories.
-4. Return ONLY a JSON object in the following format (without explanations or markdown): 
-{{ "parent_category": "...", "sub_category": "..." }}
+    prompt = f"""You are a product category classifier for an e-commerce platform.
 
-Evergreen Categories:\n{evergreen_list}
-Summer Categories:\n{summer_list}
-Rainy Categories:\n{rainy_list}
-Winter Categories:\n{winter_list}
+Your job: Given a product search query, find the single best matching category from the list below.
+
+Valid categories (choose ONLY from this list):
+{CATEGORIES_STR}
 
 Query: "{query.strip()}"
 
-If the query doesn't clearly match anything, return:
-{{ "parent_category": "unknown", "sub_category": "unknown" }}
-"""
-    try:
-        response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-        category_info = response.text.strip()
-        match = re.search(r'\{[\s\S]*?\}', category_info)
-        if match:
-            return json.loads(match.group(0))
-        raise ValueError("No valid JSON returned by Gemini")
-    except Exception as e:
-        print("❌ Gemini category detection error:", e)
-        return {"parent_category": "unknown", "sub_category": "unknown"}
-    
-    # # Wrap your call in a simple retry loop with exponential backoff
-    # for attempt in range(3):
-    #     try:
-    #         response = client.models.generate_content(model="gemini-3.1-flash-lite", contents=prompt)
-    #         category_info = response.text.strip()
-    #         match = re.search(r'\{[\s\S]*?\}', category_info)
-    #         if match:
-    #             return json.loads(match.group(0))
-            
-    #         # If the model hallucinates non-JSON, we raise a ValueError to trigger the except block
-    #         raise ValueError("No valid JSON returned by Gemini")
-            
-    #     except Exception as e:
-    #         print(f"❌ Gemini category detection error (Attempt {attempt + 1}/3):", e)
-            
-    #         # Check if the error is due to rate limits or server overload
-    #         if "503" in str(e) or "429" in str(e):
-    #             if attempt < 2: # Don't sleep if it's the very last attempt
-    #                 await asyncio.sleep(2 ** attempt) # Wait 1s, then 2s
-    #                 continue
-    #             else:
-    #                 # If we exhausted all 3 attempts, raise the 503 error for the frontend
-    #                 raise HTTPException(status_code=503, detail="AI_SERVICE_UNAVAILABLE")
-            
-    #         # If the error is NOT 503/429 (e.g. prompt issue, bad JSON), return unknown
-    #         return {"parent_category": "unknown", "sub_category": "unknown"}
+Rules:
+- You MUST return only one category from the valid categories list above
+- Do NOT invent or modify category names
+- Return JSON only, no explanation, no markdown
+- Format: {{"sub_category": "<exact category name from list>"}}
+- If nothing matches: {{"sub_category": "unknown"}}"""
 
-    # # Fallback return (should rarely be reached due to the logic above)
-    # return {"parent_category": "unknown", "sub_category": "unknown"}
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+        text = response.text.strip()
+        match = re.search(r'\{[\s\S]*?\}', text)
+
+        if match:
+            result = json.loads(match.group(0))
+            sub_cat = result.get("sub_category", "unknown")
+
+            # Derive parent from CATEGORY_MAP
+            if sub_cat in CATEGORY_MAP:
+                parent_cat = CATEGORY_MAP[sub_cat]
+
+                return {"parent_category": parent_cat, "sub_category": sub_cat}
+
+        return {"parent_category": "unknown", "sub_category": "unknown"}
+
+    except Exception as e:
+        print(f"❌ Gemini error: {e}")
+        return {"parent_category": "unknown", "sub_category": "unknown"}
 
 
 async def get_query_embedding_from_category(query: str, CATEGORY_EMBEDDINGS: dict):

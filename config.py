@@ -38,3 +38,9 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 JWT_SECRET = os.getenv("JWT_SECRET")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+
+# ── API key pool ──────────────────────────────────────────────────────────────
+GEMINI_API_KEYS = [k for k in [
+    os.getenv(f"GEMINI_API_KEY_{i}") for i in range(1, 7)
+] if k]
+
